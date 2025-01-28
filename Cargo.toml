@@ -1,0 +1,10 @@
+[package]
+name = "binary_polynomial_mod_algebra"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+num-traits = "0.2"
+num-bigint = "0.4"
+num-integer = "0.1"
+thiserror = "2.0"
