@@ -1,3 +1,17 @@
+//! # Binary univariate Polynomials
+//! This crate provides a simple implementation of binary univariate polynomials and operations on them.
+
+#![forbid(unsafe_code, unused_must_use)]
+#![deny(
+    missing_docs,
+    unreachable_pub,
+    unused_import_braces,
+    unused_extern_crates,
+    unused_qualifications
+)]
+#[doc = include_str!("../README.md")]
+
+/// Errors in polynomial operations
 pub mod error;
 
 use std::fmt::Display;
@@ -7,6 +21,7 @@ use num_integer::Integer;
 use num_traits::{One, Pow, Zero};
 use crate::error::BinaryPolynomialError;
 
+/// Represents a binary univariate polynomial
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct BinaryPolynomial {
     polynomial: BigUint,
@@ -14,6 +29,9 @@ pub struct BinaryPolynomial {
 
 impl BinaryPolynomial {
 
+    /// Returns the degree of the polynomial
+    ///
+    /// Degree of 0 is returned for the zero polynomial
     pub fn degree(&self) -> usize {
         if self.polynomial.is_zero() {
             return 0;
@@ -21,7 +39,13 @@ impl BinaryPolynomial {
         self.polynomial.bits() as usize - 1
     }
 
-    /// Returns (quotient, remainder)
+    /// Performs the division of self-polynomial by the divisor polynomial
+    ///
+    /// # Arguments
+    /// * `divisor` - The non-zero divisor polynomial
+    ///
+    /// # Returns
+    /// A tuple of (quotient, remainder)
     pub fn div_mod(&self, divisor: &NonZeroBinaryPolynomial) -> (Self, Self) {
         let divisor = divisor.get();
         let mut q = BigUint::zero();
@@ -37,6 +61,14 @@ impl BinaryPolynomial {
         }
     }
 
+    /// Performs the multiplication of self-polynomial by the other polynomial, modulo the modulus polynomial
+    ///
+    /// # Arguments
+    /// * `other` - The other polynomial to multiply by
+    /// * `modulus` - The non-zero modulus polynomial
+    ///
+    /// # Returns
+    /// The result of the multiplication modulo the modulus polynomial, or an error if the degree of the multiplier or the other polynomial is greater or equal to the modulus polynomial
     pub fn mul_mod(&self, other: &Self, modulus: &NonZeroBinaryPolynomial) -> Result<Self, BinaryPolynomialError> {
         let modulus = modulus.get();
         let modulus_degree = modulus.degree();
@@ -61,9 +93,17 @@ impl BinaryPolynomial {
         Ok(Self { polynomial: result })
     }
 
-    pub fn pow_mod(&self, exp: usize, modulus: &NonZeroBinaryPolynomial) -> Result<Self, BinaryPolynomialError> {
+    /// Performs the exponentiation of the polynomial to the power of the exponent, modulo the modulus polynomial
+    ///
+    /// # Arguments
+    /// * `exp` - The exponent to raise the polynomial to
+    /// * `modulus` - The non-zero modulus polynomial
+    ///
+    /// # Returns
+    /// The result of the exponentiation modulo the modulus polynomial
+    pub fn pow_mod(&self, exp: usize, modulus: &NonZeroBinaryPolynomial) -> Self {
         if self.is_zero() || self.is_one() || exp == 1 {
-            return Ok(self.clone() % modulus.clone());
+            return self.clone() % modulus.clone();
         }
 
         let mut factor = self.clone() % modulus.clone();
@@ -71,19 +111,30 @@ impl BinaryPolynomial {
         let mut exp = exp;
         while exp > 0 {
             if exp.is_odd() {
-                result = result.mul_mod(&factor, modulus)?;
+                result = result.mul_mod(&factor, modulus).unwrap();
             }
-            factor = factor.mul_mod(&factor, modulus)?;
+            factor = factor.mul_mod(&factor, modulus).unwrap();
             exp >>= 1;
         }
-        Ok(result)
+        result
     }
 
+    /// Checks if the polynomial is congruent to the other polynomial modulo the modulus polynomial
+    ///
+    /// # Arguments
+    /// * `other` - The other polynomial to check congruence with
+    /// * `modulus` - The non-zero modulus polynomial
+    ///
+    /// # Returns
+    /// `true` if the polynomials are congruent, `false` otherwise
     pub fn congruent_mod(&self, other: &Self, modulus: &NonZeroBinaryPolynomial) -> bool {
         (self.clone() + other.clone()) % modulus.clone() == Self::zero()
     }
 }
 
+/// Display implementation for `BinaryPolynomial`
+///
+/// The polynomial is displayed in the form of a sum of monomials, like: `x^3 + x^2 + 1`, or `0` for the zero polynomial
 impl Display for BinaryPolynomial {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_zero() {
@@ -112,13 +163,33 @@ impl Display for BinaryPolynomial {
     }
 }
 
+/// Conversion from BigUint to BinaryPolynomial
+///
+/// The polynomial is generated from the bits of the BigUint, with the least significant bit being lowest degree monoial
+///
+/// # Example
+/// ```rust
+/// use num_bigint::BigUint;
+/// use binary_polynomial_mod_algebra::BinaryPolynomial;
+/// let polynomial = BinaryPolynomial::from(BigUint::from(13u32)); // 0b1101
+/// assert_eq!(polynomial.to_string(), "x^3 + x^2 + 1");
+/// ```
 impl From<BigUint> for BinaryPolynomial {
     fn from(polynomial: BigUint) -> Self {
         Self { polynomial }
     }
 }
 
-/// The biggest factor is first
+/// Conversion from Vec<bool> to BinaryPolynomial
+///
+/// The polynomial is generated from the bits of the Vec<bool>, with the first element being the highest degree monomial
+///
+/// # Example
+/// ```rust
+/// use binary_polynomial_mod_algebra::BinaryPolynomial;
+/// let polynomial = BinaryPolynomial::from(vec![true, true, false, true]);
+/// assert_eq!(polynomial.to_string(), "x^3 + x^2 + 1");
+/// ```
 impl From<Vec<bool>> for BinaryPolynomial {
     fn from(polynomial: Vec<bool>) -> Self {
         let mut result_polynomial = BigUint::zero();
@@ -132,13 +203,18 @@ impl From<Vec<bool>> for BinaryPolynomial {
     }
 }
 
+/// Conversion from BinaryPolynomial to BigUint
+///
+/// The BigUint is generated from the bits of the BinaryPolynomial, with the least significant bit being lowest degree monomial
 impl Into<BigUint> for BinaryPolynomial {
     fn into(self) -> BigUint {
         self.polynomial
     }
 }
 
-/// The biggest factor is first
+/// Conversion from BinaryPolynomial to Vec<bool>
+///
+/// The Vec<bool> is generated from the bits of the BinaryPolynomial, with the first element being the highest degree monomial
 impl Into<Vec<bool>> for BinaryPolynomial {
     fn into(self) -> Vec<bool> {
         let mut result = Vec::new();
@@ -149,6 +225,9 @@ impl Into<Vec<bool>> for BinaryPolynomial {
     }
 }
 
+/// Performs the addition of two BinaryPolynomials
+///
+/// This is equivalent to the XOR operation on the bits of the polynomials
 impl Add for BinaryPolynomial {
     type Output = Self;
 
@@ -171,6 +250,7 @@ impl Zero for BinaryPolynomial {
     }
 }
 
+/// Performs the multiplication of two BinaryPolynomials
 impl Mul<Self> for BinaryPolynomial {
     type Output = Self;
 
@@ -199,6 +279,7 @@ impl One for BinaryPolynomial {
     }
 }
 
+/// Performs the remainder operation of a binary polynomial by a non-zero binary polynomial
 impl Rem<NonZeroBinaryPolynomial> for BinaryPolynomial {
     type Output = Self;
 
@@ -216,6 +297,7 @@ impl Rem<NonZeroBinaryPolynomial> for BinaryPolynomial {
     }
 }
 
+/// Performs the exponentiation of a binary polynomial to an usize exponent
 impl Pow<usize> for BinaryPolynomial {
     type Output = Self;
 
@@ -241,10 +323,19 @@ impl Pow<usize> for BinaryPolynomial {
     }
 }
 
+/// Represents a non-zero binary univariate polynomial
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct NonZeroBinaryPolynomial(BinaryPolynomial);
 
 impl NonZeroBinaryPolynomial {
+
+    /// Creates a new `NonZeroBinaryPolynomial` from a binary polynomial
+    ///
+    /// # Arguments
+    /// * `value` - The binary polynomial value to create a `NonZeroBinaryPolynomial` from
+    ///
+    /// # Returns
+    /// `None` if the value is zero, `Some(NonZeroBinaryPolynomial)` containing the value of the passed polynomial otherwise
     pub fn new(value: BinaryPolynomial) -> Option<Self> {
         if value.is_zero() {
             None
@@ -253,18 +344,40 @@ impl NonZeroBinaryPolynomial {
         }
     }
 
+    /// Returns the binary polynomial value of the non-zero polynomial
+    ///
+    /// # Returns
+    /// The binary polynomial value of the non-zero polynomial
     pub fn get(&self) -> &BinaryPolynomial {
         &self.0
     }
 
+    /// Returns the owned binary polynomial value of the non-zero polynomial
+    ///
+    /// # Returns
+    /// The owned binary polynomial value of the non-zero polynomial
     pub fn get_owned(self) -> BinaryPolynomial {
         self.0
     }
 
+    /// Check if the non-zero polynomial is coprime with the other non-zero polynomial
+    ///
+    /// # Arguments
+    /// * `other` - The other non-zero polynomial to check coprimality with
+    ///
+    /// # Returns
+    /// `true` if the non-zero polynomials are coprime, `false` otherwise
     pub fn coprime(&self, other: &Self) -> bool {
         self.gcd(other).get().is_one()
     }
 
+    /// Returns the Greatest Common Divisor of the non-zero polynomials
+    ///
+    /// # Arguments
+    /// * `other` - The other non-zero polynomial to calculate the GCD with
+    ///
+    /// # Returns
+    /// The Greatest Common Divisor of the non-zero polynomials (which is always non-zero)
     pub fn gcd(&self, other: &Self) -> Self {
         let mut a = self.get().clone();
         let mut b = other.get().clone();
@@ -276,7 +389,13 @@ impl NonZeroBinaryPolynomial {
         Self::new(a).unwrap()
     }
 
-    /// Returns (d, x, y) where d is the Greatest Common Divisor of polynomials a and b, x, y are polynomials that satisfy: p_mul(a,x) ^ p_mul(b,y) = d
+    /// Computes the Extended Greatest Common Divisor of two non-zero polynomials
+    ///
+    /// # Arguments
+    /// * `other` - The other non-zero polynomial to calculate the Extended Greatest Common Divisor with
+    ///
+    /// # Returns
+    /// A tuple `(d, x, y)` where `d` is the Greatest Common Divisor of polynomials `self` and `other`, `x`, `y` are polynomials that satisfy: `(self * x) + (other * y) = d`
     pub fn egcd(&self, other: &Self) -> (Self, BinaryPolynomial, BinaryPolynomial) {
         let mut a: (Self, BinaryPolynomial, BinaryPolynomial) = (self.clone(), BinaryPolynomial::one(), BinaryPolynomial::zero());
         let mut b: (Self, BinaryPolynomial, BinaryPolynomial) = (other.clone(), BinaryPolynomial::zero(), BinaryPolynomial::one());
@@ -290,15 +409,27 @@ impl NonZeroBinaryPolynomial {
         }
     }
 
-    pub fn inv_mod(&self, modulus: &Self) -> Result<BinaryPolynomial, BinaryPolynomialError> {
+    /// Computes the modular inverse of the non-zero polynomial
+    ///
+    /// # Arguments
+    /// * `modulus` - The non-zero modulus polynomial
+    ///
+    /// # Returns
+    /// The modular inverse of the non-zero polynomial, or `None` if the polynomial is not invertible modulo the modulus polynomial
+    pub fn inv_mod(&self, modulus: &Self) -> Option<BinaryPolynomial> {
         let (d, x, _) = self.egcd(modulus);
         if !d.get().is_one() {
-            return Err(BinaryPolynomialError::NonInvertiblePolynomialError);
+            return None;
         }
-        Ok(x)
+        Some(x)
     }
 }
 
+/// Display implementation for `NonZeroBinaryPolynomial`
+///
+/// The polynomial is displayed in the form of a sum of monomials, like: `x^3 + x^2 + 1`, or `0` for the zero polynomial
+///
+/// This is the same as the display implementation for `BinaryPolynomial`
 impl Display for NonZeroBinaryPolynomial {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.0.fmt(f)
@@ -536,8 +667,7 @@ mod tests {
         assert_eq!(result.to_string(), "x^3 + x + 1");
 
         let result = polynomial2.inv_mod(&modulus_polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NonInvertiblePolynomialError);
+        assert!(result.is_none());
 
         let result = polynomial3.inv_mod(&modulus_polynomial).unwrap();
         assert_eq!(result.to_string(), "x");
@@ -550,22 +680,22 @@ mod tests {
         let polynomial = BinaryPolynomial::from(vec![true, true, false, true]);
         let modulo = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, false, false, true])).unwrap();
 
-        let result = zero_polynomial.pow_mod(3, &modulo).unwrap();
+        let result = zero_polynomial.pow_mod(3, &modulo);
         assert!(result.is_zero());
 
-        let result = one_polynomial.pow_mod(3, &modulo).unwrap();
+        let result = one_polynomial.pow_mod(3, &modulo);
         assert_eq!(result, one_polynomial);
 
-        let result = polynomial.pow_mod(0, &modulo).unwrap();
+        let result = polynomial.pow_mod(0, &modulo);
         assert_eq!(result, one_polynomial);
 
-        let result = polynomial.pow_mod(1, &modulo).unwrap();
+        let result = polynomial.pow_mod(1, &modulo);
         assert_eq!(result, polynomial);
 
-        let result = polynomial.pow_mod(2, &modulo).unwrap();
+        let result = polynomial.pow_mod(2, &modulo);
         assert_eq!(result.to_string(), "x^2");
 
-        let result = polynomial.pow_mod(3, &modulo).unwrap();
+        let result = polynomial.pow_mod(3, &modulo);
         assert_eq!(result.to_string(), "x^2 + x + 1");
     }
 
