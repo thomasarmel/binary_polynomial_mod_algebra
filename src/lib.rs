@@ -22,29 +22,23 @@ impl BinaryPolynomial {
     }
 
     /// Returns (quotient, remainder)
-    pub fn div_mod(&self, divisor: &Self) -> Result<(Self, Self), BinaryPolynomialError> {
-        if divisor.is_zero() {
-            return Err(BinaryPolynomialError::DivideByZeroError);
-        }
+    pub fn div_mod(&self, divisor: &NonZeroBinaryPolynomial) -> (Self, Self) {
+        let divisor = divisor.get();
         let mut q = BigUint::zero();
         let mut a = self.polynomial.clone();
         let bl = divisor.polynomial.bits() as i64;
         loop {
             let shift = (a.bits() as i64) - bl;
             if shift < 0 {
-                return Ok(
-                    (Self { polynomial: q}, Self {polynomial: a})
-                );
+                return (Self { polynomial: q}, Self {polynomial: a});
             }
             q ^= BigUint::one() << shift;
             a ^= divisor.polynomial.clone() << shift;
         }
     }
 
-    pub fn mul_mod(&self, other: &Self, modulus: &Self) -> Result<Self, BinaryPolynomialError> {
-        if modulus.is_zero() {
-            return Err(BinaryPolynomialError::NullModulusError);
-        }
+    pub fn mul_mod(&self, other: &Self, modulus: &NonZeroBinaryPolynomial) -> Result<Self, BinaryPolynomialError> {
+        let modulus = modulus.get();
         let modulus_degree = modulus.degree();
 
         if self.degree() >= modulus_degree || other.degree() >= modulus_degree {
@@ -67,58 +61,7 @@ impl BinaryPolynomial {
         Ok(Self { polynomial: result })
     }
 
-    pub fn gcd(&self, other: &Self) -> Result<Self, BinaryPolynomialError> {
-        if self.is_zero() || other.is_zero() {
-            return Err(BinaryPolynomialError::NullPolynomialCommonDivisorError);
-        }
-
-        let mut a = self.clone();
-        let mut b = other.clone();
-
-        while !b.polynomial.is_zero() {
-            (a, b) = (b.clone(), a.clone() % b.clone());
-        }
-        Ok(a)
-    }
-
-    /// Returns (d, x, y) where d is the Greatest Common Divisor of polynomials a and b, x, y are polynomials that satisfy: p_mul(a,x) ^ p_mul(b,y) = d
-    pub fn egcd(&self, other: &Self) -> Result<(Self, Self, Self), BinaryPolynomialError> {
-        if self.is_zero() || other.is_zero() {
-            return Err(BinaryPolynomialError::NullPolynomialCommonDivisorError);
-        }
-
-        let mut a = (self.clone(), BinaryPolynomial::one(), BinaryPolynomial::zero());
-        let mut b = (other.clone(), BinaryPolynomial::zero(), BinaryPolynomial::one());
-
-        loop {
-            let (q, r) = a.0.div_mod(&b.0)?;
-            let q: BinaryPolynomial = q.into();
-            let r:BinaryPolynomial = r.into();
-            if r.is_zero() {
-                return Ok(b);
-            }
-            (a, b) = (b.clone(), (r, BinaryPolynomial::from(a.1.polynomial ^ (q.clone() * b.1.clone()).polynomial), BinaryPolynomial::from(a.2.polynomial ^ (q.clone() * b.2.clone()).polynomial)));
-        }
-    }
-
-    pub fn inv_mod(&self, modulus: &Self) -> Result<Self, BinaryPolynomialError> {
-        if modulus.is_zero() {
-            return Err(BinaryPolynomialError::NullModulusError);
-        }
-        if self.is_zero() {
-            return Err(BinaryPolynomialError::NonInvertiblePolynomialError);
-        }
-        let (d, x, _) = Self::egcd(&self, modulus)?;
-        if !d.is_one() {
-            return Err(BinaryPolynomialError::NonInvertiblePolynomialError);
-        }
-        Ok(x)
-    }
-
-    pub fn pow_mod(&self, exp: usize, modulus: &Self) -> Result<Self, BinaryPolynomialError> {
-        if modulus.is_zero() {
-            return Err(BinaryPolynomialError::NullModulusError);
-        }
+    pub fn pow_mod(&self, exp: usize, modulus: &NonZeroBinaryPolynomial) -> Result<Self, BinaryPolynomialError> {
         if self.is_zero() || self.is_one() || exp == 1 {
             return Ok(self.clone() % modulus.clone());
         }
@@ -136,15 +79,8 @@ impl BinaryPolynomial {
         Ok(result)
     }
 
-    pub fn congruent_mod(&self, other: &Self, modulus: &Self) -> bool {
-        if modulus.is_zero() {
-            panic!("Modulus cannot be zero");
-        }
+    pub fn congruent_mod(&self, other: &Self, modulus: &NonZeroBinaryPolynomial) -> bool {
         (self.clone() + other.clone()) % modulus.clone() == Self::zero()
-    }
-
-    pub fn coprime(&self, other: &Self) -> bool {
-        self.gcd(other).unwrap().is_one()
     }
 }
 
@@ -182,7 +118,7 @@ impl From<BigUint> for BinaryPolynomial {
     }
 }
 
-/// Biggest factor is first
+/// The biggest factor is first
 impl From<Vec<bool>> for BinaryPolynomial {
     fn from(polynomial: Vec<bool>) -> Self {
         let mut result_polynomial = BigUint::zero();
@@ -202,7 +138,7 @@ impl Into<BigUint> for BinaryPolynomial {
     }
 }
 
-/// Biggest factor is first
+/// The biggest factor is first
 impl Into<Vec<bool>> for BinaryPolynomial {
     fn into(self) -> Vec<bool> {
         let mut result = Vec::new();
@@ -263,13 +199,11 @@ impl One for BinaryPolynomial {
     }
 }
 
-impl Rem for BinaryPolynomial {
+impl Rem<NonZeroBinaryPolynomial> for BinaryPolynomial {
     type Output = Self;
 
-    fn rem(self, rhs: Self) -> Self::Output {
-        if rhs.is_zero() {
-            panic!("Modulus cannot be zero");
-        }
+    fn rem(self, rhs: NonZeroBinaryPolynomial) -> Self::Output {
+        let rhs = rhs.get();
         let bl = rhs.polynomial.bits() as i64;
         let mut a = self.polynomial.clone();
         loop {
@@ -304,6 +238,70 @@ impl Pow<usize> for BinaryPolynomial {
         }
 
         result
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct NonZeroBinaryPolynomial(BinaryPolynomial);
+
+impl NonZeroBinaryPolynomial {
+    pub fn new(value: BinaryPolynomial) -> Option<Self> {
+        if value.is_zero() {
+            None
+        } else {
+            Some(NonZeroBinaryPolynomial(value))
+        }
+    }
+
+    pub fn get(&self) -> &BinaryPolynomial {
+        &self.0
+    }
+
+    pub fn get_owned(self) -> BinaryPolynomial {
+        self.0
+    }
+
+    pub fn coprime(&self, other: &Self) -> bool {
+        self.gcd(other).get().is_one()
+    }
+
+    pub fn gcd(&self, other: &Self) -> Self {
+        let mut a = self.get().clone();
+        let mut b = other.get().clone();
+
+        while let Some(non_zero_b) = Self::new(b.clone()) {
+            (a, b) = (b.clone(), a.clone() % non_zero_b);
+        }
+
+        Self::new(a).unwrap()
+    }
+
+    /// Returns (d, x, y) where d is the Greatest Common Divisor of polynomials a and b, x, y are polynomials that satisfy: p_mul(a,x) ^ p_mul(b,y) = d
+    pub fn egcd(&self, other: &Self) -> (Self, BinaryPolynomial, BinaryPolynomial) {
+        let mut a: (Self, BinaryPolynomial, BinaryPolynomial) = (self.clone(), BinaryPolynomial::one(), BinaryPolynomial::zero());
+        let mut b: (Self, BinaryPolynomial, BinaryPolynomial) = (other.clone(), BinaryPolynomial::zero(), BinaryPolynomial::one());
+
+        loop {
+            let (q, r) = a.0.get().div_mod(&b.0);
+            if r.is_zero() {
+                return b;
+            }
+            (a, b) = (b.clone(), (NonZeroBinaryPolynomial::new(r).unwrap(), BinaryPolynomial::from(a.1.polynomial ^ (q.clone() * b.1.clone()).polynomial), BinaryPolynomial::from(a.2.polynomial ^ (q.clone() * b.2.clone()).polynomial)));
+        }
+    }
+
+    pub fn inv_mod(&self, modulus: &Self) -> Result<BinaryPolynomial, BinaryPolynomialError> {
+        let (d, x, _) = self.egcd(modulus);
+        if !d.get().is_one() {
+            return Err(BinaryPolynomialError::NonInvertiblePolynomialError);
+        }
+        Ok(x)
+    }
+}
+
+impl Display for NonZeroBinaryPolynomial {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -398,7 +396,7 @@ mod tests {
     fn test_modulo() {
         let one_polynomial = BinaryPolynomial::one();
         let polynomial = BinaryPolynomial::from(vec![true, true, true, false, true]);
-        let modulo = BinaryPolynomial::from(vec![true, false, true]);
+        let modulo = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, true])).unwrap();
 
         let result = one_polynomial.clone() % modulo.clone();
         assert_eq!(result, one_polynomial);
@@ -414,14 +412,10 @@ mod tests {
         let polynomial = BinaryPolynomial::from(vec![true, true, true, false, true]);
         let polynomial2 = BinaryPolynomial::from(vec![true, false, true]);
 
-        let result = polynomial.div_mod(&zero_polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::DivideByZeroError);
-
-        let result = polynomial.div_mod(&one_polynomial).unwrap();
+        let result = polynomial.div_mod(&NonZeroBinaryPolynomial::new(one_polynomial).unwrap());
         assert_eq!(result, (polynomial.clone(), zero_polynomial));
 
-        let result = polynomial.div_mod(&polynomial2).unwrap();
+        let result = polynomial.div_mod(&NonZeroBinaryPolynomial::new(polynomial2).unwrap());
         assert_eq!(result.0.to_string(), "x^2 + x");
         assert_eq!(result.1.to_string(), "x + 1");
     }
@@ -448,7 +442,7 @@ mod tests {
         let polynomial = BinaryPolynomial::from(vec![true, true, true, false, true]);
         let polynomial2 = BinaryPolynomial::from(vec![true, false, true]);
         let polynomial3 = BinaryPolynomial::from(vec![true, true, false, true]);
-        let modulo = BinaryPolynomial::from(vec![true, false, false, false, true]);
+        let modulo = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, false, false, true])).unwrap();
 
         let result = zero_polynomial.mul_mod(&polynomial2, &modulo).unwrap();
         assert_eq!(result.to_string(), "0");
@@ -463,10 +457,6 @@ mod tests {
         let result = polynomial2.mul_mod(&polynomial, &modulo);
         assert!(result.is_err());
         assert_eq!(result.unwrap_err(), BinaryPolynomialError::MultiplierDegreeGreaterOrEqualToModulusError);
-
-        let result = polynomial2.mul_mod(&polynomial3, &zero_polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NullModulusError);
 
         let result = polynomial2.mul_mod(&polynomial3, &modulo).unwrap();
         assert_eq!(result.to_string(), "x^3 + x");
@@ -501,53 +491,35 @@ mod tests {
 
     #[test]
     fn test_gcd() {
-        let polynomial = BinaryPolynomial::from(vec![true, true, true, false, true]);
-        let polynomial2 = BinaryPolynomial::from(vec![true, false, true]);
-        let zero_polynomial = BinaryPolynomial::zero();
+        let polynomial = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, true, true, false, true])).unwrap();
+        let polynomial2 = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, true])).unwrap();
 
-        let result = polynomial.gcd(&polynomial2).unwrap();
+        let result = polynomial.gcd(&polynomial2);
         assert_eq!(result.to_string(), "x + 1");
 
-        let result = polynomial2.gcd(&polynomial).unwrap();
+        let result = polynomial2.gcd(&polynomial);
         assert_eq!(result.to_string(), "x + 1");
 
-        let result = polynomial.gcd(&polynomial).unwrap();
+        let result = polynomial.gcd(&polynomial);
         assert_eq!(result, polynomial);
-
-        let result = polynomial.gcd(&zero_polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NullPolynomialCommonDivisorError);
-
-        let result = zero_polynomial.gcd(&polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NullPolynomialCommonDivisorError);
     }
 
     #[test]
     fn test_egcd() {
-        let polynomial = BinaryPolynomial::from(vec![true, true, true, false, true]);
-        let polynomial2 = BinaryPolynomial::from(vec![true, false, true]);
-        let zero_polynomial = BinaryPolynomial::zero();
+        let polynomial = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, true, true, false, true])).unwrap();
+        let polynomial2 = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, true])).unwrap();
 
-        let result = polynomial.egcd(&zero_polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NullPolynomialCommonDivisorError);
-
-        let result = zero_polynomial.egcd(&polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NullPolynomialCommonDivisorError);
-
-        let result = polynomial.egcd(&polynomial2).unwrap();
+        let result = polynomial.egcd(&polynomial2);
         assert_eq!(result.0.to_string(), "x + 1");
         assert_eq!(result.1.to_string(), "1");
         assert_eq!(result.2.to_string(), "x^2 + x");
 
-        let result = polynomial2.egcd(&polynomial).unwrap();
+        let result = polynomial2.egcd(&polynomial);
         assert_eq!(result.0.to_string(), "x + 1");
         assert_eq!(result.1.to_string(), "x^2 + x");
         assert_eq!(result.2.to_string(), "1");
 
-        let result = polynomial.egcd(&polynomial).unwrap();
+        let result = polynomial.egcd(&polynomial);
         assert_eq!(result.0.to_string(), "x^4 + x^3 + x^2 + 1");
         assert_eq!(result.1.to_string(), "0");
         assert_eq!(result.2.to_string(), "1");
@@ -555,19 +527,10 @@ mod tests {
 
     #[test]
     fn test_inv_mod() {
-        let zero_polynomial = BinaryPolynomial::zero();
-        let modulus_polynomial = BinaryPolynomial::from(vec![true, false, false, false, true]);
-        let polynomial = BinaryPolynomial::from(vec![true, false, true, true]);
-        let polynomial2 = BinaryPolynomial::from(vec![true, false, true]);
-        let polynomial3 = BinaryPolynomial::from(vec![true, false, false, false]);
-
-        let result = polynomial.inv_mod(&zero_polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NullModulusError);
-
-        let result = zero_polynomial.inv_mod(&modulus_polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NonInvertiblePolynomialError);
+        let modulus_polynomial = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, false, false, true])).unwrap();
+        let polynomial = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, true, true])).unwrap();
+        let polynomial2 = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, true])).unwrap();
+        let polynomial3 = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, false, false])).unwrap();
 
         let result = polynomial.inv_mod(&modulus_polynomial).unwrap();
         assert_eq!(result.to_string(), "x^3 + x + 1");
@@ -585,7 +548,7 @@ mod tests {
         let zero_polynomial = BinaryPolynomial::zero();
         let one_polynomial = BinaryPolynomial::one();
         let polynomial = BinaryPolynomial::from(vec![true, true, false, true]);
-        let modulo = BinaryPolynomial::from(vec![true, false, false, false, true]);
+        let modulo = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, false, false, true])).unwrap();
 
         let result = zero_polynomial.pow_mod(3, &modulo).unwrap();
         assert!(result.is_zero());
@@ -595,10 +558,6 @@ mod tests {
 
         let result = polynomial.pow_mod(0, &modulo).unwrap();
         assert_eq!(result, one_polynomial);
-
-        let result = polynomial.pow_mod(3, &zero_polynomial);
-        assert!(result.is_err());
-        assert_eq!(result.unwrap_err(), BinaryPolynomialError::NullModulusError);
 
         let result = polynomial.pow_mod(1, &modulo).unwrap();
         assert_eq!(result, polynomial);
@@ -614,7 +573,7 @@ mod tests {
     fn test_congruent_mod() {
         let polynomial = BinaryPolynomial::from(vec![true, true, false, true]);
         let polynomial2 = BinaryPolynomial::from(vec![true, false, true]);
-        let modulo = BinaryPolynomial::from(vec![true, false, false, false, true]);
+        let modulo = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, false, false, true])).unwrap();
 
         let result = polynomial.congruent_mod(&polynomial2, &modulo);
         assert!(!result);
@@ -625,9 +584,9 @@ mod tests {
 
     #[test]
     fn test_coprime() {
-        let polynomial = BinaryPolynomial::from(vec![false, true, false, true]);
-        let polynomial2 = BinaryPolynomial::from(vec![true, false, false, true]);
-        let polynomial3 = BinaryPolynomial::from(vec![true, true, false, true]);
+        let polynomial = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![false, true, false, true])).unwrap();
+        let polynomial2 = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, false, false, true])).unwrap();
+        let polynomial3 = NonZeroBinaryPolynomial::new(BinaryPolynomial::from(vec![true, true, false, true])).unwrap();
 
         let result = polynomial.coprime(&polynomial2);
         assert!(!result);
@@ -637,5 +596,20 @@ mod tests {
 
         let result = polynomial2.coprime(&polynomial3);
         assert!(result);
+    }
+
+    #[test]
+    fn test_nonzeropolynomial() {
+        let zero_polynomial = BinaryPolynomial::from(vec![false, false, false, false]);
+        assert_eq!(NonZeroBinaryPolynomial::new(zero_polynomial), None);
+
+        let polynomial = BinaryPolynomial::zero();
+        assert_eq!(NonZeroBinaryPolynomial::new(polynomial), None);
+
+        let polynomial = BinaryPolynomial::one();
+        assert_eq!(NonZeroBinaryPolynomial::new(polynomial.clone()).unwrap().get(), &polynomial);
+
+        let polynomial = BinaryPolynomial::from(vec![true, true, false, true]);
+        assert_eq!(NonZeroBinaryPolynomial::new(polynomial.clone()).unwrap().get(), &polynomial);
     }
 }
