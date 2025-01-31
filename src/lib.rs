@@ -14,12 +14,13 @@
 /// Errors in polynomial operations
 pub mod error;
 
-use std::fmt::Display;
-use std::ops::{Add, Mul, Rem};
+use crate::error::BinaryPolynomialError;
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::{One, Pow, Zero};
-use crate::error::BinaryPolynomialError;
+use std::cmp::max;
+use std::fmt::Display;
+use std::ops::{Add, Mul, Rem};
 
 /// Represents a binary univariate polynomial
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
@@ -33,10 +34,7 @@ impl BinaryPolynomial {
     ///
     /// Degree of 0 is returned for the zero polynomial
     pub fn degree(&self) -> usize {
-        if self.polynomial.is_zero() {
-            return 0;
-        }
-        self.polynomial.bits() as usize - 1
+        max(self.polynomial.bits() as usize, 1usize) - 1
     }
 
     /// Performs the division of self-polynomial by the divisor polynomial
@@ -56,7 +54,7 @@ impl BinaryPolynomial {
             if shift < 0 {
                 return (Self { polynomial: q}, Self {polynomial: a});
             }
-            q ^= BigUint::one() << shift;
+            q.set_bit(shift as u64, true);
             a ^= divisor.polynomial.clone() << shift;
         }
     }
@@ -102,11 +100,12 @@ impl BinaryPolynomial {
     /// # Returns
     /// The result of the exponentiation modulo the modulus polynomial
     pub fn pow_mod(&self, exp: usize, modulus: &NonZeroBinaryPolynomial) -> Self {
+        let mut factor = self.clone() % modulus.clone();
+
         if self.is_zero() || self.is_one() || exp == 1 {
-            return self.clone() % modulus.clone();
+            return factor;
         }
 
-        let mut factor = self.clone() % modulus.clone();
         let mut result = Self::one();
         let mut exp = exp;
         while exp > 0 {
@@ -315,7 +314,7 @@ impl Pow<usize> for BinaryPolynomial {
             if exp.is_odd() {
                 result = result * factor.clone();
             }
-            factor = factor.clone() * factor.clone();
+            factor = factor.clone() * factor;
             exp >>= 1;
         }
 
@@ -383,7 +382,7 @@ impl NonZeroBinaryPolynomial {
         let mut b = other.get().clone();
 
         while let Some(non_zero_b) = Self::new(b.clone()) {
-            (a, b) = (b.clone(), a.clone() % non_zero_b);
+            (a, b) = (b, a % non_zero_b);
         }
 
         Self::new(a).unwrap()
@@ -405,7 +404,8 @@ impl NonZeroBinaryPolynomial {
             if r.is_zero() {
                 return b;
             }
-            (a, b) = (b.clone(), (NonZeroBinaryPolynomial::new(r).unwrap(), BinaryPolynomial::from(a.1.polynomial ^ (q.clone() * b.1.clone()).polynomial), BinaryPolynomial::from(a.2.polynomial ^ (q.clone() * b.2.clone()).polynomial)));
+            (a, b) = (b.clone(),
+                      (NonZeroBinaryPolynomial::new(r).unwrap(), BinaryPolynomial::from(a.1.polynomial ^ (q.clone() * b.1).polynomial), BinaryPolynomial::from(a.2.polynomial ^ (q * b.2).polynomial)));
         }
     }
 
