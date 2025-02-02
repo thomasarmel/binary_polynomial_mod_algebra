@@ -18,7 +18,6 @@ use crate::error::BinaryPolynomialError;
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::{One, Pow, Zero};
-use std::cmp::max;
 use std::fmt::Display;
 use std::ops::{Add, Mul, Rem};
 
@@ -32,9 +31,9 @@ impl BinaryPolynomial {
 
     /// Returns the degree of the polynomial
     ///
-    /// Degree of 0 is returned for the zero polynomial
-    pub fn degree(&self) -> usize {
-        max(self.polynomial.bits() as usize, 1usize) - 1
+    /// Degree of -1 is returned for the zero polynomial
+    pub fn degree(&self) -> isize {
+        self.polynomial.bits() as isize - 1
     }
 
     /// Performs the division of self-polynomial by the divisor polynomial
@@ -554,7 +553,7 @@ mod tests {
     #[test]
     fn test_degree() {
         let zero_polynomial = BinaryPolynomial::zero();
-        assert_eq!(zero_polynomial.degree(), 0);
+        assert_eq!(zero_polynomial.degree(), -1);
 
         let one_polynomial = BinaryPolynomial::one();
         assert_eq!(one_polynomial.degree(), 0);
