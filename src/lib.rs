@@ -13,6 +13,7 @@
 
 /// Errors in polynomial operations
 pub mod error;
+mod utils;
 
 use crate::error::BinaryPolynomialError;
 use num_bigint::BigUint;
@@ -20,6 +21,7 @@ use num_integer::Integer;
 use num_traits::{One, Pow, Zero};
 use std::fmt::Display;
 use std::ops::{Add, Mul, Rem};
+use crate::utils::prime_factors;
 
 /// Represents a binary univariate polynomial
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
@@ -34,6 +36,27 @@ impl BinaryPolynomial {
     /// Degree of -1 is returned for the zero polynomial
     pub fn degree(&self) -> isize {
         self.polynomial.bits() as isize - 1
+    }
+
+    /// Check if the polynomial is irreducible
+    pub fn is_irreducible(&self) -> bool {
+        let degree = self.degree();
+        if degree <= 0 {
+            return false;
+        }
+        let degree = degree as usize;
+        let x_polynomial = Self::from(BigUint::from(2usize)); // P(X) = X
+        let self_nonzero = NonZeroBinaryPolynomial::new(self.clone()).unwrap();
+
+        for q in prime_factors(degree) {
+            let h = x_polynomial.pow_mod(1 << (degree / q), &self_nonzero) + (x_polynomial.clone() % self_nonzero.clone());
+            let h_nonzero = NonZeroBinaryPolynomial::new(h).unwrap();
+            if self_nonzero.gcd(&h_nonzero).get() != &Self::one() {
+                return false
+            }
+        }
+        let h = x_polynomial.pow_mod(1 << degree, &self_nonzero) + (x_polynomial % self_nonzero);
+        h.is_zero()
     }
 
     /// Performs the division of self-polynomial by the divisor polynomial
@@ -740,5 +763,14 @@ mod tests {
 
         let polynomial = BinaryPolynomial::from(vec![true, true, false, true]);
         assert_eq!(NonZeroBinaryPolynomial::new(polynomial.clone()).unwrap().get(), &polynomial);
+    }
+
+    #[test]
+    fn test_is_irreducible() {
+        assert!(!BinaryPolynomial::zero().is_irreducible());
+        assert!(!BinaryPolynomial::one().is_irreducible());
+        assert!(!BinaryPolynomial::from(BigUint::from(0b11011usize)).is_irreducible());
+        assert!(BinaryPolynomial::from(BigUint::from(0b11111usize)).is_irreducible());
+        assert!(BinaryPolynomial::from(BigUint::from(0b10011usize)).is_irreducible());
     }
 }
