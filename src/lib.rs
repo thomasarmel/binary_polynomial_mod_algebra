@@ -21,12 +21,12 @@ use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::{One, Pow, Zero};
 use std::fmt::Display;
-use std::ops::{Add, Mul, Rem};
+use std::ops::{Add, Div, Mul, Rem};
 pub use crate::non_zero_polynomial::NonZeroBinaryPolynomial;
 use crate::utils::prime_factors;
 
 /// Represents a binary univariate polynomial
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
 pub struct BinaryPolynomial {
     polynomial: BigUint,
 }
@@ -343,6 +343,15 @@ impl Rem<NonZeroBinaryPolynomial> for BinaryPolynomial {
     }
 }
 
+/// Performs the division of self-polynomial by the divisor polynomial
+impl Div<NonZeroBinaryPolynomial> for BinaryPolynomial {
+    type Output = Self;
+
+    fn div(self, rhs: NonZeroBinaryPolynomial) -> Self::Output {
+        self.div_mod(&rhs).0
+    }
+}
+
 /// Performs the exponentiation of a binary polynomial to an usize exponent
 impl Pow<usize> for BinaryPolynomial {
     type Output = Self;
@@ -482,6 +491,19 @@ mod tests {
         let result = polynomial.div_mod(&NonZeroBinaryPolynomial::new(polynomial2).unwrap());
         assert_eq!(result.0.to_string(), "x^2 + x");
         assert_eq!(result.1.to_string(), "x + 1");
+    }
+
+    #[test]
+    fn test_div() {
+        let one_polynomial = BinaryPolynomial::one();
+        let polynomial = BinaryPolynomial::from(vec![true, true, true, false, true]);
+        let polynomial2 = BinaryPolynomial::from(vec![true, false, true]);
+
+        let result = polynomial.clone() / NonZeroBinaryPolynomial::new(one_polynomial).unwrap();
+        assert_eq!(result, polynomial.clone());
+
+        let result = polynomial / NonZeroBinaryPolynomial::new(polynomial2).unwrap();
+        assert_eq!(result.to_string(), "x^2 + x");
     }
 
     #[test]

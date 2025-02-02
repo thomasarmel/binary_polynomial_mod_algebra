@@ -90,9 +90,10 @@ assert_eq!(inverse.unwrap().to_string(), "x^3 + x + 1");
 
 You can use the following operators:
 
-| Operator   | operand 1           | operand 2                  | Description                                                                              |
-|------------|---------------------|----------------------------|------------------------------------------------------------------------------------------|
-| `+`        | `BinaryPolynomial`  | `BinaryPolynomial`         | Polynomial addition<br/>(equivalent to XOR)                                              |
-| `*`        | `BinaryPolynomial`  | `BinaryPolynomial`         | Polynomial multiplication<br/>(without modulo, use `mul_mod` for modular multiplication) |
-| `%`        | `BinaryPolynomial`  | `NonZeroBinaryPolynomial`  | Polynomial modulo                                                                        |
-| `pow`      | `BinaryPolynomial`  | `usize`                    | Polynomial exponentiation<br/>(without modulo, use `pow_mod` for modular exponentiation) |
+| Operator | operand 1           | operand 2                  | Description                                                                              |
+|----------|---------------------|----------------------------|------------------------------------------------------------------------------------------|
+| `+`      | `BinaryPolynomial`  | `BinaryPolynomial`         | Polynomial addition<br/>(equivalent to XOR)                                              |
+| `*`      | `BinaryPolynomial`  | `BinaryPolynomial`         | Polynomial multiplication<br/>(without modulo, use `mul_mod` for modular multiplication) |
+| `%`      | `BinaryPolynomial`  | `NonZeroBinaryPolynomial`  | Polynomial modulo                                                                        |
+| `/`      | `BinaryPolynomial`  | `NonZeroBinaryPolynomial`  | Polynomial division<br/>(returns quotient)                                               |
+| `pow`    | `BinaryPolynomial`  | `usize`                    | Polynomial exponentiation<br/>(without modulo, use `pow_mod` for modular exponentiation) |
