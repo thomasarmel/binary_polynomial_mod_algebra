@@ -24,7 +24,7 @@ use binary_polynomial_mod_algebra::BinaryPolynomial;
 
 let polynomial = BinaryPolynomial::from(BigUint::from(13u32)); // or 0b1101u32
 assert_eq!(polynomial.to_string(), "x^3 + x^2 + 1");
-let polynomial = BinaryPolynomial::try_from("x^4 + x + 1").unwrap(); // or 0b1101u32
+let polynomial = BinaryPolynomial::try_from("x^4 + x + 1").unwrap();
 assert_eq!(polynomial.to_string(), "x^4 + x + 1");
 ```
 
