@@ -129,16 +129,16 @@ impl NonZeroBinaryPolynomial {
     /// The set of irreducible factors and their respective power
     pub fn irreducible_factors(&self) -> HashMap<Self, usize> {
         // Thanks https://github.com/uranix/factormod/
-        let mut polynomial_stack = Vec::from([(self.clone(), 1usize)]);
+        let mut polynomial_stack = Vec::from([(self.to_owned(), 1usize)]);
         let mut ret = HashMap::new();
         while !polynomial_stack.is_empty() {
-            let (polynomial, multiplicative) = polynomial_stack.pop().unwrap();
+            let (polynomial, multiplier) = polynomial_stack.pop().unwrap();
 
             let d = polynomial.double_factor();
             if d.is_one() {
                 let factors = polynomial.square_free_irreducible_factors().unwrap();
                 factors.iter().for_each(|factor| {
-                    Self::incr_hashmap_count(&mut ret, factor.to_owned(), multiplicative);
+                    Self::incr_hashmap_count(&mut ret, factor, multiplier);
                 });
                 continue;
             }
@@ -152,26 +152,26 @@ impl NonZeroBinaryPolynomial {
                     }
                 }
                 let non_zero_g = NonZeroBinaryPolynomial::new(g).unwrap();
-                polynomial_stack.push((non_zero_g, multiplicative * 2));
+                polynomial_stack.push((non_zero_g, multiplier * 2));
                 continue;
             }
-            polynomial_stack.push((d.clone(), multiplicative));
             let add = NonZeroBinaryPolynomial::new(self.get().div_mod(&d).0)
                 .unwrap()
                 .square_free_irreducible_factors()
                 .unwrap();
             add.iter().for_each(|p| {
-                Self::incr_hashmap_count(&mut ret, p.to_owned(), multiplicative);
+                Self::incr_hashmap_count(&mut ret, p, multiplier);
             });
+            polynomial_stack.push((d, multiplier));
         }
         ret
     }
 
-    fn incr_hashmap_count(hashmap: &mut HashMap<Self, usize>, key: Self, incr: usize) {
-        if hashmap.contains_key(&key) {
-            hashmap.get_mut(&key).unwrap().add_assign(incr);
+    fn incr_hashmap_count(hashmap: &mut HashMap<Self, usize>, key: &Self, incr: usize) {
+        if hashmap.contains_key(key) {
+            hashmap.get_mut(key).unwrap().add_assign(incr);
         } else {
-            hashmap.insert(key, incr);
+            hashmap.insert(key.to_owned(), incr);
         }
     }
 
@@ -185,12 +185,12 @@ impl NonZeroBinaryPolynomial {
     ///
     /// # Returns
     /// The set of irreducible factors, or an error if the polynomial is not square free
-    pub fn square_free_irreducible_factors(&self) -> Result<HashSet<Self>, BinaryPolynomialError> {
+    pub fn square_free_irreducible_factors(&self) -> Result<HashSet<Self>, BinaryPolynomialError> { // TODO better algorithm?
         if !self.is_square_free() {
             return Err(BinaryPolynomialError::NotSquareFreePolynomialError);
         }
         if self.is_one() {
-            return Ok(HashSet::from_iter(vec![self.clone()]));
+            return Ok(HashSet::from_iter(vec![self.to_owned()]));
         }
         let mut b = BerkelampMatrix::from_poly(self);
         b.add_unit_matrix();
@@ -208,7 +208,7 @@ impl NonZeroBinaryPolynomial {
 
         while !hq.is_empty() {
             let h0 = NonZeroBinaryPolynomial::new(hq.front().unwrap().to_owned()).unwrap();
-            let mut h1 = h0.to_owned();
+            let mut h1 = h0.clone();
             h1.get_mut().flip_bit(0);
             out_set.clear();
             for p in &in_set {
