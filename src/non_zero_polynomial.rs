@@ -6,7 +6,7 @@ use crate::BinaryPolynomial;
 use num_traits::{One, Zero};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
-use std::ops::Mul;
+use std::ops::{AddAssign, Mul};
 
 /// Represents a non-zero binary univariate polynomial
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -127,49 +127,52 @@ impl NonZeroBinaryPolynomial {
     ///
     /// # Returns
     /// The set of irreducible factors and their respective power
-    pub fn irreducible_factors(&self) -> HashMap<Self, usize> { // TODO iterative instead of recursive
+    pub fn irreducible_factors(&self) -> HashMap<Self, usize> {
         // Thanks https://github.com/uranix/factormod/
-        let d = self.double_factor();
-        if d.is_one() {
-            let factors = self.square_free_irreducible_factors().unwrap();
-            return factors.iter().map(|factor| (factor.clone(), 1)).collect();
-        }
-        let self_degree = self.get().degree() as usize;
-        if self == &d {
-            // f' = 0, f only has even powers
-            let mut g = BinaryPolynomial::zero();
-            for i in (0..=self_degree).step_by(2) {
-                if self.get().polynomial.bit(i as u64) {
-                    g.flip_bit(i >> 1);
+        let mut polynomial_stack = Vec::from([(self.clone(), 1usize)]);
+        let mut ret = HashMap::new();
+        while !polynomial_stack.is_empty() {
+            let (polynomial, multiplicative) = polynomial_stack.pop().unwrap();
+
+            let d = polynomial.double_factor();
+            if d.is_one() {
+                let factors = polynomial.square_free_irreducible_factors().unwrap();
+                factors.iter().for_each(|factor| {
+                    Self::incr_hashmap_count(&mut ret, factor.to_owned(), multiplicative);
+                });
+                continue;
+            }
+            let poly_degree = polynomial.get().degree() as usize;
+            if polynomial == d {
+                // f' = 0, f only has even powers
+                let mut g = BinaryPolynomial::zero();
+                for i in (0..=poly_degree).step_by(2) {
+                    if polynomial.get().polynomial.bit(i as u64) {
+                        g.flip_bit(i >> 1);
+                    }
                 }
+                let non_zero_g = NonZeroBinaryPolynomial::new(g).unwrap();
+                polynomial_stack.push((non_zero_g, multiplicative * 2));
+                continue;
             }
-            let non_zero_g = NonZeroBinaryPolynomial::new(g).unwrap();
-            let gf = non_zero_g.irreducible_factors(); // todo
-            let mut ret = HashMap::new();
-            for p in gf {
-                if ret.contains_key(&p.0) {
-                    let current_value = ret.get(&p.0).unwrap();
-                    ret.insert(p.0, current_value + (p.1 * 2));
-                } else {
-                    ret.insert(p.0, p.1 * 2);
-                }
-            }
-            return ret;
-        }
-        let mut ret = d.irreducible_factors(); // todo
-        let add = NonZeroBinaryPolynomial::new(self.get().div_mod(&d).0)
-            .unwrap()
-            .square_free_irreducible_factors()
-            .unwrap();
-        for p in add {
-            if ret.contains_key(&p) {
-                let current_value = ret.get(&p).unwrap();
-                ret.insert(p, current_value + 1);
-            } else {
-                ret.insert(p, 1);
-            }
+            polynomial_stack.push((d.clone(), multiplicative));
+            let add = NonZeroBinaryPolynomial::new(self.get().div_mod(&d).0)
+                .unwrap()
+                .square_free_irreducible_factors()
+                .unwrap();
+            add.iter().for_each(|p| {
+                Self::incr_hashmap_count(&mut ret, p.to_owned(), multiplicative);
+            });
         }
         ret
+    }
+
+    fn incr_hashmap_count(hashmap: &mut HashMap<Self, usize>, key: Self, incr: usize) {
+        if hashmap.contains_key(&key) {
+            hashmap.get_mut(&key).unwrap().add_assign(incr);
+        } else {
+            hashmap.insert(key, incr);
+        }
     }
 
     /// Computes irreducible factors of square free polynomial.
@@ -237,9 +240,9 @@ impl NonZeroBinaryPolynomial {
     }
 
     /// Check if the polynomial is square free
-    /// 
+    ///
     /// A polynomial is square free if all its irreducible factors are different
-    /// 
+    ///
     /// # Returns
     /// `true` if the polynomial is square free, `false` otherwise
     pub fn is_square_free(&self) -> bool {
