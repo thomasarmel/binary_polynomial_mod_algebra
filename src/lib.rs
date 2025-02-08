@@ -15,6 +15,7 @@
 pub mod error;
 mod utils;
 pub mod non_zero_polynomial;
+//mod berkelamp_matrix;
 
 use crate::error::BinaryPolynomialError;
 use num_bigint::BigUint;
@@ -185,6 +186,11 @@ impl BinaryPolynomial {
         }
         derivative
     }
+
+    fn flip_bit(&mut self, bit_pos: usize) {
+        let bit_pos = bit_pos as u64;
+        self.polynomial.set_bit(bit_pos, self.polynomial.bit(bit_pos) ^ true);
+    }
 }
 
 /// Display implementation for `BinaryPolynomial`
@@ -258,6 +264,50 @@ impl From<Vec<bool>> for BinaryPolynomial {
     }
 }
 
+impl TryFrom<&str> for BinaryPolynomial {
+    type Error = BinaryPolynomialError;
+
+    /// Parse polynomial from string
+    ///
+    /// # Arguments
+    /// `value` - The string representation of the binary polynomial, in the form `x^4 + x^3 + x + 1`
+    ///
+    /// # Returns
+    /// A `BinaryPolynomial`, or an error if the parsing failed
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let polynomial_filtered = value.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+        if polynomial_filtered.is_empty() {
+            return Ok(Self::zero());
+        }
+        let mut polynomial = Self::zero();
+        for monomial_string in polynomial_filtered.split('+') {
+            if monomial_string == "0" {
+                continue;
+            }
+            if monomial_string == "1" {
+                polynomial.flip_bit(0);
+                continue;
+            }
+            if monomial_string == "x" {
+                polynomial.flip_bit(1);
+                continue;
+            }
+            let monomial_splitted = monomial_string.split('^').collect::<Vec<&str>>();
+            if monomial_splitted.len() != 2 || monomial_splitted[0] != "x" {
+                return Err(BinaryPolynomialError::ParsingPolynomialError)
+            }
+            let monomial_pos = match monomial_splitted[1].parse::<usize>() {
+                Ok(num) => num,
+                Err(_) => {
+                    return Err(BinaryPolynomialError::ParsingPolynomialError);
+                }
+            };
+            polynomial.flip_bit(monomial_pos);
+        }
+        Ok(polynomial)
+    }
+}
+
 /// Conversion from BinaryPolynomial to BigUint
 ///
 /// The BigUint is generated from the bits of the BinaryPolynomial, with the least significant bit being lowest degree monomial
@@ -305,7 +355,7 @@ impl Zero for BinaryPolynomial {
     }
 }
 
-/// Performs the multiplication of two BinaryPolynomials
+/// Performs the multiplication of two `BinaryPolynomial`
 impl Mul<Self> for BinaryPolynomial {
     type Output = Self;
 
@@ -445,6 +495,28 @@ mod tests {
         assert_eq!(polynomial.to_string(), "x^3 + x");
         let vec_bool: Vec<bool> = polynomial.into();
         assert_eq!(vec_bool, vec![true, false, true, false]);
+    }
+
+    #[test]
+    fn test_from_str() {
+        let polynomial = BinaryPolynomial::try_from("").unwrap();
+        assert!(polynomial.is_zero());
+        let polynomial = BinaryPolynomial::try_from("  ").unwrap();
+        assert!(polynomial.is_zero());
+        let polynomial = BinaryPolynomial::try_from(" 0").unwrap();
+        assert!(polynomial.is_zero());
+        let polynomial = BinaryPolynomial::try_from("1 ").unwrap();
+        assert!(polynomial.is_one());
+        let polynomial = BinaryPolynomial::try_from("x + x^31 + 1").unwrap();
+        assert_eq!(polynomial.to_string(), "x^31 + x + 1");
+        let polynomial = BinaryPolynomial::try_from("x^31 + x^ 32 + x + x^31 + 1 + 1").unwrap();
+        assert_eq!(polynomial.to_string(), "x^32 + x");
+        let polynomial = BinaryPolynomial::try_from("x^3 + a^2 + 1");
+        assert!(polynomial.is_err());
+        assert_eq!(polynomial.unwrap_err(), BinaryPolynomialError::ParsingPolynomialError);
+        let polynomial = BinaryPolynomial::try_from("x^3 + x^a + 1");
+        assert!(polynomial.is_err());
+        assert_eq!(polynomial.unwrap_err(), BinaryPolynomialError::ParsingPolynomialError);
     }
 
     #[test]

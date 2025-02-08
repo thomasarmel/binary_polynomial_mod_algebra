@@ -1,6 +1,6 @@
 # Binary univariate polynomial algebra
 
-*This repo is highly inspired from https://gist.github.com/mildsunrise/e21ae2b1649532813f2594932f9e9371*
+*This repo is highly inspired from https://gist.github.com/mildsunrise/e21ae2b1649532813f2594932f9e9371, and https://github.com/uranix/factormod*
 
 ---
 
@@ -24,6 +24,8 @@ use binary_polynomial_mod_algebra::BinaryPolynomial;
 
 let polynomial = BinaryPolynomial::from(BigUint::from(13u32)); // or 0b1101u32
 assert_eq!(polynomial.to_string(), "x^3 + x^2 + 1");
+let polynomial = BinaryPolynomial::try_from("x^4 + x + 1").unwrap(); // or 0b1101u32
+assert_eq!(polynomial.to_string(), "x^4 + x + 1");
 ```
 
 You can also create a `BinaryPolynomial` from a `Vec<bool>`, where the first element is the highest degree coefficient.
