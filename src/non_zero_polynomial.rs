@@ -1,11 +1,15 @@
 //! Module for binary polynomial that is guaranteed to be non-zero
 
-use std::fmt::Display;
-use num_traits::{One, Zero};
+use crate::berkelamp_matrix::BerkelampMatrix;
+use crate::error::BinaryPolynomialError;
 use crate::BinaryPolynomial;
+use num_traits::{One, Zero};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::Display;
+use std::ops::Mul;
 
 /// Represents a non-zero binary univariate polynomial
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NonZeroBinaryPolynomial(BinaryPolynomial);
 
 impl NonZeroBinaryPolynomial {
@@ -31,6 +35,14 @@ impl NonZeroBinaryPolynomial {
     /// The binary polynomial value of the non-zero polynomial
     pub fn get(&self) -> &BinaryPolynomial {
         &self.0
+    }
+
+    /// Returns the binary polynomial value of the non-zero polynomial
+    ///
+    /// # Returns
+    /// The binary polynomial value of the non-zero polynomial
+    pub fn get_mut(&mut self) -> &mut BinaryPolynomial {
+        &mut self.0
     }
 
     /// Returns the owned binary polynomial value of the non-zero polynomial
@@ -105,6 +117,134 @@ impl NonZeroBinaryPolynomial {
         }
         Some(x)
     }
+
+    /// Computes irreducible factors of square free polynomial using Berlekamp's algorithm.
+    ///
+    /// # Note
+    /// If you know that your polynomial is square free (meaning all its irreducible factors are different), you can use [Self::square_free_irreducible_factors] instead.
+    ///
+    /// You can check whether a polynomial is square free using [Self::is_square_free].
+    ///
+    /// # Returns
+    /// The set of irreducible factors and their respective power
+    pub fn irreducible_factors(&self) -> HashMap<Self, usize> { // TODO iterative instead of recursive
+        // Thanks https://github.com/uranix/factormod/
+        let d = self.double_factor();
+        if d.is_one() {
+            let factors = self.square_free_irreducible_factors().unwrap();
+            return factors.iter().map(|factor| (factor.clone(), 1)).collect();
+        }
+        let self_degree = self.get().degree() as usize;
+        if self == &d {
+            // f' = 0, f only has even powers
+            let mut g = BinaryPolynomial::zero();
+            for i in (0..=self_degree).step_by(2) {
+                if self.get().polynomial.bit(i as u64) {
+                    g.flip_bit(i >> 1);
+                }
+            }
+            let non_zero_g = NonZeroBinaryPolynomial::new(g).unwrap();
+            let gf = non_zero_g.irreducible_factors(); // todo
+            let mut ret = HashMap::new();
+            for p in gf {
+                if ret.contains_key(&p.0) {
+                    let current_value = ret.get(&p.0).unwrap();
+                    ret.insert(p.0, current_value + (p.1 * 2));
+                } else {
+                    ret.insert(p.0, p.1 * 2);
+                }
+            }
+            return ret;
+        }
+        let mut ret = d.irreducible_factors(); // todo
+        let add = NonZeroBinaryPolynomial::new(self.get().div_mod(&d).0)
+            .unwrap()
+            .square_free_irreducible_factors()
+            .unwrap();
+        for p in add {
+            if ret.contains_key(&p) {
+                let current_value = ret.get(&p).unwrap();
+                ret.insert(p, current_value + 1);
+            } else {
+                ret.insert(p, 1);
+            }
+        }
+        ret
+    }
+
+    /// Computes irreducible factors of square free polynomial.
+    ///
+    /// A polynomial is square free if all its irreducible factors are differents.
+    ///
+    /// Compared to [Self::irreducible_factors], this function is faster but needs square free polynomial.
+    ///
+    /// You can check whether a polynomial is square free using [Self::is_square_free].
+    ///
+    /// # Returns
+    /// The set of irreducible factors, or an error if the polynomial is not square free
+    pub fn square_free_irreducible_factors(&self) -> Result<HashSet<Self>, BinaryPolynomialError> {
+        if !self.is_square_free() {
+            return Err(BinaryPolynomialError::NotSquareFreePolynomialError);
+        }
+        if self.is_one() {
+            return Ok(HashSet::from_iter(vec![self.clone()]));
+        }
+        let mut b = BerkelampMatrix::from_poly(self);
+        b.add_unit_matrix();
+        let piv = b.rref();
+        let hv = b.rref_nullspace(&piv);
+
+        let mut hq = VecDeque::from(hv);
+        assert!(!hq.is_empty());
+        assert!(hq.front().unwrap().is_one());
+        hq.pop_front();
+
+        let mut in_set = HashSet::new();
+        let mut out_set = HashSet::new();
+        in_set.insert(self.to_owned());
+
+        while !hq.is_empty() {
+            let h0 = NonZeroBinaryPolynomial::new(hq.front().unwrap().to_owned()).unwrap();
+            let mut h1 = h0.to_owned();
+            h1.get_mut().flip_bit(0);
+            out_set.clear();
+            for p in &in_set {
+                let d0 = p.gcd(&h0);
+                let d1 = p.gcd(&h1);
+                if !d0.is_one() {
+                    out_set.insert(d0);
+                }
+                if !d1.is_one() {
+                    out_set.insert(d1);
+                }
+            }
+            hq.pop_front();
+            std::mem::swap(&mut in_set, &mut out_set);
+        }
+
+        Ok(in_set)
+    }
+
+    fn double_factor(&self) -> Self {
+        let derivative = self.get().derivative();
+        let nonzero_derivative = match NonZeroBinaryPolynomial::new(derivative) {
+            None => {
+                return self.clone();
+            }
+            Some(d) => {d}
+        };
+        self.gcd(&nonzero_derivative)
+    }
+
+    /// Check if the polynomial is square free
+    /// 
+    /// A polynomial is square free if all its irreducible factors are different
+    /// 
+    /// # Returns
+    /// `true` if the polynomial is square free, `false` otherwise
+    pub fn is_square_free(&self) -> bool {
+        self.double_factor().is_one()
+    }
 }
 
 /// Display implementation for `NonZeroBinaryPolynomial`
@@ -118,10 +258,27 @@ impl Display for NonZeroBinaryPolynomial {
     }
 }
 
+/// Performs the multiplication of two `NonZeroBinaryPolynomial`
+impl Mul for NonZeroBinaryPolynomial {
+    type Output = Self;
+
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self::new(self.0 * rhs.0).unwrap()
+    }
+}
+
+impl One for NonZeroBinaryPolynomial {
+    fn one() -> Self {
+        Self::new(BinaryPolynomial::one()).unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use num_traits::{One, Zero};
+    use crate::error::BinaryPolynomialError;
     use crate::{BinaryPolynomial, NonZeroBinaryPolynomial};
+    use num_traits::{One, Zero};
+    use std::collections::HashSet;
 
     #[test]
     fn test_gcd() {
@@ -205,5 +362,96 @@ mod tests {
 
         let result = polynomial2.coprime(&polynomial3);
         assert!(result);
+    }
+
+    #[test]
+    fn test_square_free_irreducible_factors() {
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^2 + 1").unwrap()).unwrap();
+        let factorization = p.square_free_irreducible_factors();
+        assert!(factorization.is_err());
+        assert_eq!(factorization.unwrap_err(), BinaryPolynomialError::NotSquareFreePolynomialError); // (x + 1)^2
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x + 1").unwrap()).unwrap();
+        let factorization = p.square_free_irreducible_factors().unwrap();
+        assert_eq!(factorization.len(), 1);
+        assert_eq!(factorization.iter().map(|f| f.to_string()).collect::<Vec<String>>(), vec!["x + 1"]);
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x").unwrap()).unwrap();
+        let factorization = p.square_free_irreducible_factors().unwrap();
+        assert_eq!(factorization.len(), 1);
+        assert_eq!(factorization.iter().map(|f| f.to_string()).collect::<Vec<String>>(), vec!["x"]);
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("1").unwrap()).unwrap();
+        let factorization = p.square_free_irreducible_factors().unwrap();
+        assert_eq!(factorization.len(), 1);
+        assert_eq!(factorization.iter().map(|f| f.to_string()).collect::<Vec<String>>(), vec!["1"]);
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^2 + x").unwrap()).unwrap();
+        let factorization = p.square_free_irreducible_factors().unwrap();
+        assert_eq!(factorization.len(), 2);
+        assert_eq!(factorization.iter().map(|p| p.to_string()).collect::<HashSet<String>>(), HashSet::from_iter(vec!["x + 1".to_string(), "x".to_string()]));
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^4 + x").unwrap()).unwrap();
+        let factorization = p.square_free_irreducible_factors().unwrap();
+        assert_eq!(factorization.len(), 3);
+        assert_eq!(factorization.iter().map(|p| p.to_string()).collect::<HashSet<String>>(), HashSet::from_iter(vec!["x^2 + x + 1".to_string(), "x + 1".to_string(), "x".to_string()]));
+    }
+
+    #[test]
+    fn test_irreducible_factors() {
+        let p = NonZeroBinaryPolynomial::one();
+        let factors = p.irreducible_factors();
+        assert_eq!(factors.len(), 1);
+        assert_eq!(factors.iter().map(|(p, n)| [p.to_string(), n.to_string()].join(": ")).collect::<Vec<String>>(), vec!["1: 1"]);
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x").unwrap()).unwrap();
+        let factors = p.irreducible_factors();
+        assert_eq!(factors.len(), 1);
+        assert_eq!(factors.iter().map(|(p, n)| [p.to_string(), n.to_string()].join(": ")).collect::<Vec<String>>(), vec!["x: 1"]);
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x + 1").unwrap()).unwrap();
+        let factors = p.irreducible_factors();
+        assert_eq!(factors.len(), 1);
+        assert_eq!(factors.iter().map(|(p, n)| [p.to_string(), n.to_string()].join(": ")).collect::<Vec<String>>(), vec!["x + 1: 1"]);
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^2").unwrap()).unwrap();
+        let factors = p.irreducible_factors();
+        assert_eq!(factors.len(), 1);
+        assert_eq!(factors.iter().map(|(p, n)| [p.to_string(), n.to_string()].join(": ")).collect::<Vec<String>>(), vec!["x: 2"]);
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^3").unwrap()).unwrap();
+        let factors = p.irreducible_factors();
+        assert_eq!(factors.len(), 1);
+        assert_eq!(factors.iter().map(|(p, n)| [p.to_string(), n.to_string()].join(": ")).collect::<Vec<String>>(), vec!["x: 3"]);
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^2 + x").unwrap()).unwrap();
+        let factors = p.irreducible_factors();
+        assert_eq!(factors.len(), 2);
+        assert_eq!(factors.iter().map(|(p, n)| [p.to_string(), n.to_string()].join(": ")).collect::<HashSet<String>>(), HashSet::from_iter(vec!["x: 1".to_string(), "x + 1: 1".to_string()]));
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^4 + x").unwrap()).unwrap();
+        let factors = p.irreducible_factors();
+        assert_eq!(factors.len(), 3);
+        assert_eq!(factors.iter().map(|(p, n)| [p.to_string(), n.to_string()].join(": ")).collect::<HashSet<String>>(), HashSet::from_iter(vec!["x: 1".to_string(), "x + 1: 1".to_string(), "x^2 + x + 1: 1".to_string()]));
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^36 + x^34 + x^33 + x^4 + x^2 + x").unwrap()).unwrap();
+        let factors = p.irreducible_factors();
+        assert_eq!(factors.len(), 3);
+        assert_eq!(factors.iter().map(|(p, n)| [p.to_string(), n.to_string()].join(": ")).collect::<HashSet<String>>(), HashSet::from_iter(vec!["x: 1".to_string(), "x + 1: 32".to_string(), "x^3 + x + 1: 1".to_string()]));
+    }
+
+    #[test]
+    fn test_is_square_free() {
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^2 + x").unwrap()).unwrap();
+        assert!(p.is_square_free());
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x + 1").unwrap()).unwrap();
+        assert!(p.is_square_free());
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^4 + x").unwrap()).unwrap();
+        assert!(p.is_square_free());
+
+        let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^2 + 1").unwrap()).unwrap();
+        assert!(!p.is_square_free());
     }
 }

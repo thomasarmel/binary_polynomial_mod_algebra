@@ -15,7 +15,7 @@
 pub mod error;
 mod utils;
 pub mod non_zero_polynomial;
-//mod berkelamp_matrix;
+mod berkelamp_matrix;
 
 use crate::error::BinaryPolynomialError;
 use num_bigint::BigUint;
@@ -296,12 +296,7 @@ impl TryFrom<&str> for BinaryPolynomial {
             if monomial_splitted.len() != 2 || monomial_splitted[0] != "x" {
                 return Err(BinaryPolynomialError::ParsingPolynomialError)
             }
-            let monomial_pos = match monomial_splitted[1].parse::<usize>() {
-                Ok(num) => num,
-                Err(_) => {
-                    return Err(BinaryPolynomialError::ParsingPolynomialError);
-                }
-            };
+            let monomial_pos = monomial_splitted[1].parse::<usize>().map_err(|_| BinaryPolynomialError::ParsingPolynomialError)?;
             polynomial.flip_bit(monomial_pos);
         }
         Ok(polynomial)
