@@ -176,6 +176,15 @@ impl BinaryPolynomial {
     pub fn congruent_mod(&self, other: &Self, modulus: &NonZeroBinaryPolynomial) -> bool {
         (self.clone() + other.clone()) % modulus.clone() == Self::zero()
     }
+
+    /// Returns the derivative of the polynomial
+    pub fn derivative(&self) -> Self {
+        let mut derivative = Self::zero();
+        for i in (1..self.polynomial.bits()).step_by(2) {
+            derivative.polynomial.set_bit(i-1, self.polynomial.bit(i));
+        }
+        derivative
+    }
 }
 
 /// Display implementation for `BinaryPolynomial`
@@ -630,5 +639,14 @@ mod tests {
         assert!(!BinaryPolynomial::from(BigUint::from(0b11011usize)).is_primitive());
         assert!(BinaryPolynomial::from(BigUint::from(0b11111usize)).is_primitive());
         assert!(BinaryPolynomial::from(BigUint::from(0b10011usize)).is_primitive());
+    }
+
+    #[test]
+    fn test_derivative() {
+        assert_eq!(BinaryPolynomial::zero().derivative(), BinaryPolynomial::zero());
+        assert_eq!(BinaryPolynomial::one().derivative(), BinaryPolynomial::zero());
+        assert_eq!(BinaryPolynomial::from(BigUint::from(0b10usize)).derivative(), BinaryPolynomial::one());
+        assert_eq!(BinaryPolynomial::from(BigUint::from(0b100usize)).derivative(), BinaryPolynomial::zero());
+        assert_eq!(BinaryPolynomial::from(BigUint::from(0b110usize)).derivative(), BinaryPolynomial::one());
     }
 }
