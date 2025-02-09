@@ -18,13 +18,12 @@ pub mod non_zero_polynomial;
 mod berkelamp_matrix;
 
 use crate::error::BinaryPolynomialError;
+pub use crate::non_zero_polynomial::NonZeroBinaryPolynomial;
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::{One, Pow, Zero};
 use std::fmt::Display;
 use std::ops::{Add, Div, Mul, Rem};
-pub use crate::non_zero_polynomial::NonZeroBinaryPolynomial;
-use crate::utils::prime_factors;
 
 /// Represents a binary univariate polynomial
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
@@ -39,50 +38,6 @@ impl BinaryPolynomial {
     /// Degree of -1 is returned for the zero polynomial
     pub fn degree(&self) -> isize {
         self.polynomial.bits() as isize - 1
-    }
-
-    /// Check if the polynomial is irreducible using Rabin's irreducibility test
-    pub fn is_irreducible(&self) -> bool {
-        let degree = self.degree();
-        if degree <= 0 {
-            return false;
-        }
-        let degree = degree as usize;
-        let x_polynomial = Self::from(BigUint::from(2usize)); // P(X) = X
-        let self_nonzero = NonZeroBinaryPolynomial::new(self.clone()).unwrap();
-
-        for q in prime_factors(degree) {
-            let h = x_polynomial.pow_mod(1 << (degree / q), &self_nonzero) + (x_polynomial.clone() % self_nonzero.clone());
-            let h_nonzero = NonZeroBinaryPolynomial::new(h).unwrap();
-            if self_nonzero.gcd(&h_nonzero).get() != &Self::one() {
-                return false
-            }
-        }
-        let h = x_polynomial.pow_mod(1 << degree, &self_nonzero) + (x_polynomial % self_nonzero);
-        h.is_zero()
-    }
-
-    /// Check if the polynomial is primitive
-    ///
-    /// A binary polynomial of degree m is primitive if it is irreducible
-    /// and if the smallest positive integer n such that the polynomial divides X^n + 1 is n = 2^m - 1.
-    pub fn is_primitive(&self) -> bool {
-        if !self.is_irreducible() {
-            return false;
-        }
-        let x_polynomial = Self::from(BigUint::from(2usize)); // P(X) = X
-        if self == &x_polynomial {
-            return false;
-        }
-        let degree = self.degree() as usize;
-        let order = 1usize << degree - 1;
-        let self_nonzero = NonZeroBinaryPolynomial::new(self.clone()).unwrap();
-        for q in prime_factors(order) {
-            if x_polynomial.pow_mod(order / q, &self_nonzero) == Self::one() {
-                return false;
-            }
-        }
-        true
     }
 
     /// Performs the division of self-polynomial by the divisor polynomial
@@ -688,24 +643,6 @@ mod tests {
 
         let result = polynomial.congruent_mod(&polynomial, &modulo);
         assert!(result);
-    }
-
-    #[test]
-    fn test_is_irreducible() {
-        assert!(!BinaryPolynomial::zero().is_irreducible());
-        assert!(!BinaryPolynomial::one().is_irreducible());
-        assert!(!BinaryPolynomial::from(BigUint::from(0b11011usize)).is_irreducible());
-        assert!(BinaryPolynomial::from(BigUint::from(0b11111usize)).is_irreducible());
-        assert!(BinaryPolynomial::from(BigUint::from(0b10011usize)).is_irreducible());
-    }
-
-    #[test]
-    fn test_is_primitive() {
-        assert!(!BinaryPolynomial::zero().is_primitive());
-        assert!(!BinaryPolynomial::one().is_primitive());
-        assert!(!BinaryPolynomial::from(BigUint::from(0b11011usize)).is_primitive());
-        assert!(BinaryPolynomial::from(BigUint::from(0b11111usize)).is_primitive());
-        assert!(BinaryPolynomial::from(BigUint::from(0b10011usize)).is_primitive());
     }
 
     #[test]

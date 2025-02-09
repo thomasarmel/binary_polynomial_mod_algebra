@@ -1,7 +1,7 @@
 [package]
 name = "binary_polynomial_mod_algebra"
 description = "Basic algebra on univariate binary polynomial"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 authors = ["Thomas Prévost"]
 license = "MIT OR Apache-2.0"

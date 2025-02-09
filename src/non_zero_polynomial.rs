@@ -6,7 +6,9 @@ use crate::BinaryPolynomial;
 use num_traits::{One, Zero};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
-use std::ops::{AddAssign, Mul};
+use std::ops::{AddAssign, Deref, Mul};
+use num_bigint::BigUint;
+use crate::utils::prime_factors;
 
 /// Represents a non-zero binary univariate polynomial
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -116,6 +118,50 @@ impl NonZeroBinaryPolynomial {
             return None;
         }
         Some(x)
+    }
+
+    /// Check if the polynomial is irreducible using Rabin's irreducibility test
+    pub fn is_irreducible(&self) -> bool {
+        let degree = self.degree();
+        if self.is_one() {
+            return false;
+        }
+        let degree = degree as usize;
+        let x_polynomial = BinaryPolynomial::from(BigUint::from(2usize)); // P(X) = X
+        let self_nonzero = self.clone();
+
+        for q in prime_factors(degree) {
+            let h = x_polynomial.pow_mod(1 << (degree / q), &self_nonzero) + (x_polynomial.clone() % self_nonzero.clone());
+            let h_nonzero = NonZeroBinaryPolynomial::new(h).unwrap();
+            if self_nonzero.gcd(&h_nonzero) != Self::one() {
+                return false
+            }
+        }
+        let h = x_polynomial.pow_mod(1 << degree, &self_nonzero) + (x_polynomial % self_nonzero);
+        h.is_zero()
+    }
+
+    /// Check if the polynomial is primitive
+    ///
+    /// A binary polynomial of degree m is primitive if it is irreducible
+    /// and if the smallest positive integer n such that the polynomial divides X^n + 1 is n = 2^m - 1.
+    pub fn is_primitive(&self) -> bool {
+        if !self.is_irreducible() {
+            return false;
+        }
+        let x_polynomial = BinaryPolynomial::from(BigUint::from(2usize)); // P(X) = X
+        if **self == x_polynomial {
+            return false;
+        }
+        let degree = self.degree() as usize;
+        let order = 1usize << degree - 1;
+        let self_nonzero = self.clone();
+        for q in prime_factors(order) {
+            if x_polynomial.pow_mod(order / q, &self_nonzero) == *Self::one() {
+                return false;
+            }
+        }
+        true
     }
 
     /// Computes irreducible factors of square free polynomial using Berlekamp's algorithm.
@@ -250,6 +296,14 @@ impl NonZeroBinaryPolynomial {
     }
 }
 
+impl Deref for NonZeroBinaryPolynomial {
+    type Target = BinaryPolynomial;
+
+    fn deref(&self) -> &Self::Target {
+        self.get()
+    }
+}
+
 /// Display implementation for `NonZeroBinaryPolynomial`
 ///
 /// The polynomial is displayed in the form of a sum of monomials, like: `x^3 + x^2 + 1`, or `0` for the zero polynomial
@@ -282,6 +336,7 @@ mod tests {
     use crate::{BinaryPolynomial, NonZeroBinaryPolynomial};
     use num_traits::{One, Zero};
     use std::collections::HashSet;
+    use num_bigint::BigUint;
 
     #[test]
     fn test_gcd() {
@@ -456,5 +511,21 @@ mod tests {
 
         let p = NonZeroBinaryPolynomial::new(BinaryPolynomial::try_from("x^2 + 1").unwrap()).unwrap();
         assert!(!p.is_square_free());
+    }
+
+    #[test]
+    fn test_is_irreducible() {
+        assert!(!NonZeroBinaryPolynomial::one().is_irreducible());
+        assert!(!NonZeroBinaryPolynomial::new(BinaryPolynomial::from(BigUint::from(0b11011usize))).unwrap().is_irreducible());
+        assert!(NonZeroBinaryPolynomial::new(BinaryPolynomial::from(BigUint::from(0b11111usize))).unwrap().is_irreducible());
+        assert!(NonZeroBinaryPolynomial::new(BinaryPolynomial::from(BigUint::from(0b10011usize))).unwrap().is_irreducible());
+    }
+
+    #[test]
+    fn test_is_primitive() {
+        assert!(!NonZeroBinaryPolynomial::one().is_primitive());
+        assert!(!NonZeroBinaryPolynomial::new(BinaryPolynomial::from(BigUint::from(0b11011usize))).unwrap().is_primitive());
+        assert!(NonZeroBinaryPolynomial::new(BinaryPolynomial::from(BigUint::from(0b11111usize))).unwrap().is_primitive());
+        assert!(NonZeroBinaryPolynomial::new(BinaryPolynomial::from(BigUint::from(0b10011usize))).unwrap().is_primitive());
     }
 }

@@ -98,10 +98,56 @@ assert_eq!(inverse.unwrap().to_string(), "x^3 + x + 1");
 
 You can use the following operators:
 
-| Operator | operand 1           | operand 2                  | Description                                                                              |
-|----------|---------------------|----------------------------|------------------------------------------------------------------------------------------|
-| `+`      | `BinaryPolynomial`  | `BinaryPolynomial`         | Polynomial addition<br/>(equivalent to XOR)                                              |
-| `*`      | `BinaryPolynomial`  | `BinaryPolynomial`         | Polynomial multiplication<br/>(without modulo, use `mul_mod` for modular multiplication) |
-| `%`      | `BinaryPolynomial`  | `NonZeroBinaryPolynomial`  | Polynomial modulo                                                                        |
-| `/`      | `BinaryPolynomial`  | `NonZeroBinaryPolynomial`  | Polynomial division<br/>(returns quotient)                                               |
-| `pow`    | `BinaryPolynomial`  | `usize`                    | Polynomial exponentiation<br/>(without modulo, use `pow_mod` for modular exponentiation) |
+| Operator | operand 1                 | operand 2                  | Description                                                                              |
+|----------|---------------------------|----------------------------|------------------------------------------------------------------------------------------|
+| `+`      | `BinaryPolynomial`        | `BinaryPolynomial`         | Polynomial addition<br/>(equivalent to XOR)                                              |
+| `*`      | `BinaryPolynomial`        | `BinaryPolynomial`         | Polynomial multiplication<br/>(without modulo, use `mul_mod` for modular multiplication) |
+| `*`      | `NonZeroBinaryPolynomial` | `NonZeroBinaryPolynomial`  | Polynomial multiplication<br/>(without modulo, use `mul_mod` for modular multiplication) |
+| `%`      | `BinaryPolynomial`        | `NonZeroBinaryPolynomial`  | Polynomial modulo                                                                        |
+| `/`      | `BinaryPolynomial`        | `NonZeroBinaryPolynomial`  | Polynomial division<br/>(returns quotient)                                               |
+| `pow`    | `BinaryPolynomial`        | `usize`                    | Polynomial exponentiation<br/>(without modulo, use `pow_mod` for modular exponentiation) |
+
+
+### Available operations
+
+> div_mod(BinaryPolynomial, modulo: NonZeroBinaryPolynomial)
+>> Returns quotient and modulo
+
+> mul_mod(BinaryPolynomial, BinaryPolynomial, modulo: NonZeroBinaryPolynomial)
+>> Multiplication modulo
+
+> pow_mod(BinaryPolynomial, BinaryPolynomial, modulo: NonZeroBinaryPolynomial)
+>> Exponentiation modulo
+
+> congruent_mod(BinaryPolynomial, BinaryPolynomial, modulo: NonZeroBinaryPolynomial)
+>> Check if polynomials are congruent modulo
+
+> derivative(BinaryPolynomial)
+>> Returns polynomial derivative
+
+> coprime(NonZeroBinaryPolynomial, NonZeroBinaryPolynomial)
+>> Check if two polynomials are coprime
+
+> gcd(NonZeroBinaryPolynomial, NonZeroBinaryPolynomial)
+>> Returns greatest common divisor of two polynomials
+
+> egcd(NonZeroBinaryPolynomial, NonZeroBinaryPolynomial)
+>> Returns extended greatest common divisor of two polynomials
+
+> inv_mod(NonZeroBinaryPolynomial, modulo: NonZeroBinaryPolynomial)
+>> Returns modular inverse of a polynomial
+
+> is_irreducible(NonZeroBinaryPolynomial)
+>> Check if polynomial is irreducible using Rabin's irreducibility test
+
+> is_primitive(NonZeroBinaryPolynomial)
+>> Check if polynomial is primitive
+
+> irreducible_factors(NonZeroBinaryPolynomial)
+>> Compute irreducible factors of polynomial using Berlekamp's algorithm
+
+> square_free_irreducible_factors(NonZeroBinaryPolynomial)
+>> Compute irreducible factors of square free polynomial
+
+> is_square_free(NonZeroBinaryPolynomial)
+>> Check if polynomial is square free
