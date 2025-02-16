@@ -177,9 +177,7 @@ impl NonZeroBinaryPolynomial {
         // Thanks https://github.com/uranix/factormod/
         let mut polynomial_stack = Vec::from([(self.to_owned(), 1usize)]);
         let mut ret = HashMap::new();
-        while !polynomial_stack.is_empty() {
-            let (polynomial, multiplier) = polynomial_stack.pop().unwrap();
-
+        while let Some((polynomial, multiplier)) = polynomial_stack.pop() {
             let d = polynomial.double_factor();
             if d.is_one() {
                 let factors = polynomial.square_free_irreducible_factors().unwrap();
@@ -252,8 +250,8 @@ impl NonZeroBinaryPolynomial {
         let mut out_set = HashSet::new();
         in_set.insert(self.to_owned());
 
-        while !hq.is_empty() {
-            let h0 = NonZeroBinaryPolynomial::new(hq.front().unwrap().to_owned()).unwrap();
+        while let Some(polynomial) = hq.pop_front() {
+            let h0 = NonZeroBinaryPolynomial::new(polynomial).unwrap();
             let mut h1 = h0.clone();
             h1.get_mut().flip_bit(0);
             out_set.clear();
@@ -267,7 +265,6 @@ impl NonZeroBinaryPolynomial {
                     out_set.insert(d1);
                 }
             }
-            hq.pop_front();
             std::mem::swap(&mut in_set, &mut out_set);
         }
 
